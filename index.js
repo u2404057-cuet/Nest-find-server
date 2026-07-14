@@ -16,11 +16,84 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+let db;
+
 async function run() {
   try {
     await client.connect();
-    db = client.db("nestfind");
+    db = client.db("nestFind");
     console.log("Successfully connected to MongoDB!");
+
+    // Seed mock users and reviews if not present
+    const seedUsers = [
+      { _id: "usr_buyer_001", name: "Tanvir Rahman", email: "tanvir@example.com", role: "buyer" },
+      { _id: "usr_buyer_002", name: "Sarah Jenkins", email: "sarah.j@example.com", role: "buyer" }
+    ];
+
+    const seedReviews = [
+      {
+        _id: "rev_0001",
+        propertyId: "prop_0001",
+        userId: "usr_buyer_002",
+        rating: 5,
+        comment: "Toured this apartment last month – the finishing and natural light are exceptional. Extremely quiet neighborhood.",
+        createdAt: "2026-01-08T12:00:00.000Z"
+      },
+      {
+        _id: "rev_0002",
+        propertyId: "prop_0003",
+        userId: "usr_buyer_001",
+        rating: 4,
+        comment: "Great house with a lot of privacy, though the road leading up the hill is a bit narrow. Beautiful layout and views.",
+        createdAt: "2026-01-05T15:30:00.000Z"
+      },
+      {
+        _id: "rev_0003",
+        agentId: "usr_agent_001",
+        userId: "usr_buyer_001",
+        rating: 5,
+        comment: "Tanvir was very responsive and arranged viewings quickly around my schedule. Highly recommended!",
+        createdAt: "2026-01-07T09:15:00.000Z"
+      },
+      {
+        _id: "rev_0004",
+        propertyId: "prop_0001",
+        userId: "usr_buyer_001",
+        rating: 4,
+        comment: "Excellent Gulshan 2 location, walking distance to all major cafes and restaurants. Clean building management.",
+        createdAt: "2026-02-14T10:00:00.000Z"
+      },
+      {
+        _id: "rev_0005",
+        propertyId: "prop_0002",
+        userId: "usr_buyer_002",
+        rating: 5,
+        comment: "Superb flat! The rent is very reasonable for this part of Banani. Clean corridors and friendly security.",
+        createdAt: "2026-03-01T11:20:00.000Z"
+      },
+      {
+        _id: "rev_0006",
+        propertyId: "prop_0004",
+        userId: "usr_buyer_001",
+        rating: 5,
+        comment: "Highly functional office layout in Agrabad. Excellent backup generator uptime and high-speed internet provisions.",
+        createdAt: "2026-04-10T14:45:00.000Z"
+      }
+    ];
+
+    const usersCollection = db.collection("user");
+    for (const u of seedUsers) {
+      await usersCollection.updateOne({ _id: u._id }, { $set: u }, { upsert: true });
+    }
+
+    const reviewsCollection = db.collection("reviews");
+    const count = await reviewsCollection.countDocuments();
+    if (count < 6) {
+      for (const review of seedReviews) {
+        await reviewsCollection.updateOne({ _id: review._id }, { $set: review }, { upsert: true });
+      }
+      console.log("Seeded database reviews successfully!");
+    }
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
   }
@@ -28,50 +101,220 @@ async function run() {
 run().catch(console.dir);
 
 // Properties Mock API
-app.get("/api/properties", (req, res) => {
-  const properties = [
-    {
-      id: "1",
-      title: "Azure Horizon Villa",
-      price: 2450000,
-      location: "Malibu, CA",
-      beds: 4,
-      baths: 3.5,
-      isNew: true,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAfYf3Bi8XY59JuhaObwLDHfAvh4EkM9d8jDN7EtZVAFenCgtzsBxNSWnA38ZTIyslNiZSaoZlmvgMCnyPjn1k7ml_1TvMQu0Uf-zq0YMLFcW6zauz9VGvbhp1--tatI0e2rmiZKtkOLZW0fHxSM2x6Wqvb7pPGYesgSaYbyyORdsdUiX0Tu6RVVURfy5EbvP18d0mPyTaCqI7cfCQvO45YQaIUtPiadwuoCavTBJDTfoW83F08kRrRDA",
-    },
-    {
-      id: "2",
-      title: "The Brick Loft",
-      price: 1200000,
-      location: "Soho, NY",
-      beds: 2,
-      baths: 2,
-      isNew: false,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCztlg4cORs4UNyw207ziTAMVLKQ2lDy4Rm-WO1xwmgKeCjp3fWV2RJwexV3yIQzyrwG4Co22Lj9FeT1yG0fRHPXpPs6BqQym9UsqfXX0E8RPT5U7TerG5YHrVAyDHaDQsLbG1yr9XxZHc3rF339vFvlNEkeEvlfkOfeNZU9wxr_XkgorSV82kl6P5vgy6oimIplcRRqY864nJuS0BCc20gcy9NmKACJUE34vO7xicZdjML6H3OfjwaTQ",
-    },
-    {
-      id: "3",
-      title: "Skyline Penthouse",
-      price: 4800000,
-      location: "Chicago, IL",
-      beds: 3,
-      baths: 3,
-      isNew: false,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBKQlm-sI-byzKxN02_9TwqIxDbmgi-8PCRUR5_mjKaPY4l6FXbjP6vYQy06t3izxqkomEh102NIBTX4T1bqydPijE7ZwX7SwAtHo7G8gkG3_2cKWhHFvqhBT1xd7G68UpBwgc2VYrT9IISLKfTjlY9cUVWafeV3QwNWKk70k7owQzH3Uo_GiB3fmUfMCnDcjR9nUfOanq6jE2XIUMrVBwIYakxHKhriMwdLeNhaonk4vFiuQtrzfF61g",
-    },
-    {
-      id: "4",
-      title: "Desert Zen Retreat",
-      price: 3150000,
-      location: "Sedona, AZ",
-      beds: 5,
-      baths: 5.5,
-      isNew: false,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBpPTOfivnLA9kBr1Qv1nVTugk5mZsX0JUWHFrXBAyQS7xHCO2Bf57CTY0gh5CIR_qCnytF_v5P7GdzDYV9_hXNJsxLFq9f6sqlCKy1dIXM-7TfV3dxxdSCUAD0YqD1B4Z9d3aep60KkVUgrEl6M73YOWP7k9fTtNa_PYMa-scVEMVM505Bt4uHEEz3r58cerhWhLZ92nS4xhMupk17mx1ai9pWAUW8fB-PUsroBskJlLNrrpXWKix--Q",
+app.get("/api/properties", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: "Database not connected yet" });
     }
-  ];
-  res.json(properties);
+    const propertiesCollection = db.collection("properties");
+    
+    const { agentId, q, category, sort } = req.query;
+
+    // Build MongoDB filter
+    const filter = {};
+    if (agentId) filter.agentId = agentId;
+
+    // Full-text search: match title or location (case-insensitive regex)
+    if (q && q.trim()) {
+      const regex = new RegExp(q.trim(), "i");
+      filter.$or = [
+        { title: regex },
+        { "location": regex },
+        { "location.area": regex },
+        { "location.city": regex },
+        { "location.address": regex },
+      ];
+    }
+
+    // Category filter (maps to propertyType field)
+    if (category && category !== "all") {
+      filter.propertyType = new RegExp(category, "i");
+    }
+
+    // Sort options
+    let sortOption = {};
+    if (sort === "price_asc")  sortOption = { price: 1 };
+    else if (sort === "price_desc") sortOption = { price: -1 };
+    else sortOption = { createdAt: -1 }; // default: newest first
+
+    const result = await propertiesCollection.find(filter).sort(sortOption).toArray();
+    
+    const mappedProperties = result.map(property => ({
+      id: property._id.toString(),
+      title: property.title,
+      price: property.price,
+      location: property.location
+        ? (typeof property.location === "object"
+          ? `${property.location.area || ""}, ${property.location.city || ""}`.replace(/^, |, $/, "")
+          : property.location)
+        : "",
+      beds: property.bedrooms || 0,
+      baths: property.bathrooms || 0,
+      isNew: property.featured || false,
+      image: Array.isArray(property.images) && property.images.length > 0
+        ? property.images[0]
+        : (property.image || ""),
+    }));
+
+    res.json(mappedProperties);
+  } catch (error) {
+    console.error("Error fetching properties from MongoDB:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
+// POST Property API (Agent only)
+app.post("/api/properties", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: "Database not connected yet" });
+    }
+    const propertiesCollection = db.collection("properties");
+    
+    const newProperty = {
+      ...req.body,
+      createdAt: new Date().toISOString(),
+      views: 0,
+      status: "available",
+      featured: false
+    };
+
+    const result = await propertiesCollection.insertOne(newProperty);
+    res.status(201).json({ id: result.insertedId });
+  } catch (error) {
+    console.error("Error creating property:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// DELETE Property API (Agent only)
+app.delete("/api/properties/:id", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: "Database not connected yet" });
+    }
+    const propertiesCollection = db.collection("properties");
+    const { ObjectId } = require('mongodb');
+    const id = req.params.id;
+    
+    let query = {};
+    try {
+      query = { _id: new ObjectId(id) };
+    } catch (e) {
+      query = { _id: id };
+    }
+
+    const result = await propertiesCollection.deleteOne(query);
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Property not found" });
+    }
+    res.json({ message: "Property deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting property:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Single Property Detail API
+app.get("/api/properties/:id", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: "Database not connected yet" });
+    }
+    const { ObjectId } = require('mongodb');
+    const propertiesCollection = db.collection("properties");
+    
+    let query = {};
+    const id = req.params.id;
+    try {
+      query = { _id: new ObjectId(id) };
+    } catch (e) {
+      // If it's not a valid ObjectId (like prop_0001), query as direct string
+      query = { _id: id };
+    }
+
+    const property = await propertiesCollection.findOne(query);
+    if (!property) {
+      return res.status(404).json({ error: "Property not found" });
+    }
+
+    // Map the MongoDB document format to the detail format expected by frontend
+    const mappedProperty = {
+      id: property._id.toString(),
+      title: property.title,
+      shortDescription: property.shortDescription || '',
+      fullDescription: property.fullDescription || '',
+      propertyType: property.propertyType || 'apartment',
+      listingType: property.listingType || 'sale',
+      price: property.price,
+      currency: property.currency || 'BDT',
+      location: property.location || {},
+      bedrooms: property.bedrooms || 0,
+      bathrooms: property.bathrooms || 0,
+      areaSqft: property.areaSqft || 0,
+      yearBuilt: property.yearBuilt || 0,
+      amenities: property.amenities || [],
+      images: property.images || [],
+      status: property.status || 'available',
+      views: property.views || 0,
+      featured: property.featured || false,
+      createdAt: property.createdAt
+    };
+
+    res.json(mappedProperty);
+  } catch (error) {
+    console.error("Error fetching property details from MongoDB:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET Property Reviews API
+app.get("/api/properties/:id/reviews", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: "Database not connected yet" });
+    }
+    const reviewsCollection = db.collection("reviews");
+    const propertyId = req.params.id;
+
+    // Aggregate with lookup to join user collection details
+    const reviews = await reviewsCollection.aggregate([
+      { $match: { propertyId: propertyId } },
+      {
+        $lookup: {
+          from: "user",
+          localField: "userId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      {
+        $unwind: {
+          path: "$userDetails",
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ]).toArray();
+
+    // Map to the output structure required by frontend
+    const mappedReviews = reviews.map(rev => ({
+      id: rev._id.toString(),
+      author: rev.userDetails?.name || rev.userDetails?.email || "Anonymous User",
+      rating: rev.rating || 5,
+      date: rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("en-US", {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }) : "Recent",
+      comment: rev.comment || ""
+    }));
+
+    res.json(mappedReviews);
+  } catch (error) {
+    console.error("Error fetching property reviews:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 // Testimonials Mock API
