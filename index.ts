@@ -18,7 +18,15 @@ const client = new MongoClient(uri, {
   },
 });
 
-let db: Db;
+let db: Db | null = null;
+
+async function getDb(): Promise<Db> {
+  if (!db) {
+    await client.connect();
+    db = client.db("nestFind");
+  }
+  return db;
+}
 
 function parseId(id: string): ObjectId | string {
   try {
@@ -28,17 +36,14 @@ function parseId(id: string): ObjectId | string {
   }
 }
 
-async function run() {
+async function seedDatabase() {
   try {
-    // await client.connect();
-    db = client.db("nestFind");
-    console.log("Successfully connected to MongoDB!");
-
+    const database = await getDb();
     const seedUsers = [
       { _id: "usr_buyer_001", name: "Tanvir Rahman", email: "tanvir@example.com", role: "buyer" },
       { _id: "usr_buyer_002", name: "Sarah Jenkins", email: "sarah.j@example.com", role: "buyer" },
     ];
-    const usersCollection = db.collection<any>("user");
+    const usersCollection = database.collection<any>("user");
     for (const u of seedUsers) {
       await usersCollection.updateOne({ _id: u._id }, { $set: u }, { upsert: true });
     }
@@ -93,13 +98,12 @@ async function run() {
         createdAt: "2026-04-10T14:45:00.000Z",
       },
     ];
-    const reviewsCollection = db.collection<any>("reviews");
+    const reviewsCollection = database.collection<any>("reviews");
     const revCount = await reviewsCollection.countDocuments();
     if (revCount < 6) {
       for (const review of seedReviews) {
         await reviewsCollection.updateOne({ _id: review._id }, { $set: review }, { upsert: true });
       }
-      console.log("Seeded reviews successfully!");
     }
 
     const seedTestimonials = [
@@ -128,11 +132,10 @@ async function run() {
         image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCH1jqohf3Cdx4U37V0h9hCdpBsD1p-ZaPrGNXxOHIMuU1vsnFe9bYaKzEQBLI3w_lEwioak5H8G5D6ZOVqfbjsYjWL9ia9K1xH6PoA4VVunH-AoQLN-VLXe0zrcJSnTMAJonxM05Ooe0-CsJnS2owVrymmeTlFHsrQHkpJynQSDVooRNxQqJx8-gDkSoQNQNgpvJVd1QI781DiObAzTzsIi1f8FBCx3sJ71y_mlD-LuS22g-PzzSPwLA",
       },
     ];
-    const testimonialsCollection = db.collection<any>("testimonials");
+    const testimonialsCollection = database.collection<any>("testimonials");
     const testCount = await testimonialsCollection.countDocuments();
     if (testCount === 0) {
       await testimonialsCollection.insertMany(seedTestimonials);
-      console.log("Seeded testimonials successfully!");
     }
 
     const seedAgents = [
@@ -158,32 +161,26 @@ async function run() {
         image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCR28PLdjQrSjB_LZhc3apJZHb4Axe6BJa1-qHRWD1fmpawre3n2ASMa74ngwRCh11dePP_HkZEHW9uXyov8EihSR8F7S9QCjkNJfmlXbS5OnQXphTHu4CKZTz_-y2M1XvZGMAIsoJ6K1hfDnrIz7oQxe0Vr4MCF9hN6sm7D0dYkpV1c28tTrGN9yiw1ksepw8cXGC9nC-mcWbhDceW6E6sIdcgd2slvcUGPMf4aKZ0O8gBd545nKKT8g",
       },
     ];
-    const agentsCollection = db.collection<any>("agents");
+    const agentsCollection = database.collection<any>("agents");
     const agentCount = await agentsCollection.countDocuments();
     if (agentCount === 0) {
       await agentsCollection.insertMany(seedAgents);
-      console.log("Seeded agents successfully!");
     }
   } catch (error) {
-    console.error("Failed to connect to MongoDB", error);
+    console.error("Seeding error:", error);
   }
 }
-run().catch(console.dir);
 
 app.get("/api/properties", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const agentId = req.query.agentId as string | undefined;
     const q = req.query.q as string | undefined;
     const category = req.query.category as string | undefined;
     const sort = req.query.sort as string | undefined;
 
     const filter: any = {};
-
-    if (agentId) {
-      filter.agentId = agentId;
-    }
+    if (agentId) filter.agentId = agentId;
 
     if (q && q.trim()) {
       const regex = new RegExp(q.trim(), "i");
@@ -203,7 +200,7 @@ app.get("/api/properties", async (req: Request, res: Response) => {
     if (sort === "price_asc") sortOption = { price: 1 };
     else if (sort === "price_desc") sortOption = { price: -1 };
 
-    const result = await db
+    const result = await database
       .collection("properties")
       .find(filter)
       .sort(sortOption)
@@ -235,8 +232,7 @@ app.get("/api/properties", async (req: Request, res: Response) => {
 
 app.post("/api/properties", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const newProperty = {
       ...req.body,
       createdAt: new Date().toISOString(),
@@ -245,7 +241,7 @@ app.post("/api/properties", async (req: Request, res: Response) => {
       featured: false,
     };
 
-    const result = await db.collection("properties").insertOne(newProperty);
+    const result = await database.collection("properties").insertOne(newProperty);
     res.status(201).json({ id: result.insertedId });
   } catch (error) {
     console.error("POST /api/properties:", error);
@@ -255,11 +251,10 @@ app.post("/api/properties", async (req: Request, res: Response) => {
 
 app.get("/api/properties/:id", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const idParam = req.params.id as string;
     const query = { _id: parseId(idParam) as any };
-    const property = await db.collection("properties").findOne(query);
+    const property = await database.collection("properties").findOne(query);
     if (!property) return res.status(404).json({ error: "Property not found" });
 
     res.json({
@@ -291,12 +286,11 @@ app.get("/api/properties/:id", async (req: Request, res: Response) => {
 
 app.patch("/api/properties/:id", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const idParam = req.params.id as string;
     const query = { _id: parseId(idParam) as any };
     const updateDoc = { $set: { ...req.body, updatedAt: new Date().toISOString() } };
-    const result = await db.collection("properties").updateOne(query, updateDoc);
+    const result = await database.collection("properties").updateOne(query, updateDoc);
     if (result.matchedCount === 0) return res.status(404).json({ error: "Property not found" });
 
     res.json({ message: "Property updated successfully" });
@@ -308,11 +302,10 @@ app.patch("/api/properties/:id", async (req: Request, res: Response) => {
 
 app.delete("/api/properties/:id", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const idParam = req.params.id as string;
     const query = { _id: parseId(idParam) as any };
-    const result = await db.collection("properties").deleteOne(query);
+    const result = await database.collection("properties").deleteOne(query);
     if (result.deletedCount === 0) return res.status(404).json({ error: "Property not found" });
 
     res.json({ message: "Property deleted successfully" });
@@ -324,10 +317,9 @@ app.delete("/api/properties/:id", async (req: Request, res: Response) => {
 
 app.get("/api/properties/:id/reviews", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const idParam = req.params.id as string;
-    const reviews = await db
+    const reviews = await database
       .collection("reviews")
       .aggregate([
         { $match: { propertyId: idParam } },
@@ -367,9 +359,8 @@ app.get("/api/properties/:id/reviews", async (req: Request, res: Response) => {
 
 app.get("/api/testimonials", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
-    const testimonials = await db
+    const database = await getDb();
+    const testimonials = await database
       .collection("testimonials")
       .find({})
       .toArray();
@@ -392,9 +383,8 @@ app.get("/api/testimonials", async (req: Request, res: Response) => {
 
 app.get("/api/agents", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
-    const agents = await db.collection("agents").find({}).toArray();
+    const database = await getDb();
+    const agents = await database.collection("agents").find({}).toArray();
 
     const mapped = agents.map((a) => ({
       id: a._id.toString(),
@@ -413,14 +403,13 @@ app.get("/api/agents", async (req: Request, res: Response) => {
 
 app.get("/api/stats", async (req: Request, res: Response) => {
   try {
-    if (!db) return res.status(503).json({ error: "Database not ready" });
-
+    const database = await getDb();
     const [propertyCount, agentCount] = await Promise.all([
-      db.collection("properties").countDocuments(),
-      db.collection("agents").countDocuments(),
+      database.collection("properties").countDocuments(),
+      database.collection("agents").countDocuments(),
     ]);
 
-    const cityDocs = await db
+    const cityDocs = await database
       .collection("properties")
       .distinct("location.city");
 
@@ -439,6 +428,9 @@ app.get("/api/stats", async (req: Request, res: Response) => {
 app.get("/", (req: Request, res: Response) => {
   res.json({ status: "ok", message: "NestFind API is running" });
 });
+
+// Trigger seeding
+seedDatabase();
 
 app.listen(port, () => {
   console.log(`NestFind server is running on port ${port}`);
