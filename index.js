@@ -20,27 +20,20 @@ const client = new MongoClient(uri, {
 
 let db;
 
-// ─────────────────────────────────────────────────────────────
-// Helper: safely parse a MongoDB _id (ObjectId or string)
-// ─────────────────────────────────────────────────────────────
 function parseId(id) {
   try {
     return new ObjectId(id);
   } catch {
-    return id; // plain string like "prop_0001"
+    return id;
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// DB startup + seeding
-// ─────────────────────────────────────────────────────────────
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     db = client.db("nestFind");
     console.log("Successfully connected to MongoDB!");
 
-    // Seed mock users
     const seedUsers = [
       { _id: "usr_buyer_001", name: "Tanvir Rahman", email: "tanvir@example.com", role: "buyer" },
       { _id: "usr_buyer_002", name: "Sarah Jenkins", email: "sarah.j@example.com", role: "buyer" },
@@ -50,7 +43,6 @@ async function run() {
       await usersCollection.updateOne({ _id: u._id }, { $set: u }, { upsert: true });
     }
 
-    // Seed reviews if fewer than 6 exist
     const seedReviews = [
       {
         _id: "rev_0001",
@@ -110,7 +102,6 @@ async function run() {
       console.log("Seeded reviews successfully!");
     }
 
-    // Seed testimonials if none exist
     const seedTestimonials = [
       {
         _id: "test_001",
@@ -144,7 +135,6 @@ async function run() {
       console.log("Seeded testimonials successfully!");
     }
 
-    // Seed agents if none exist
     const seedAgents = [
       {
         _id: "agent_001",
@@ -180,11 +170,7 @@ async function run() {
 }
 run().catch(console.dir);
 
-// ─────────────────────────────────────────────────────────────
-// PROPERTIES — full CRUD
-// ─────────────────────────────────────────────────────────────
 
-// READ (list) — supports ?agentId, ?q (search), ?category, ?sort
 app.get("/api/properties", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -244,7 +230,6 @@ app.get("/api/properties", async (req, res) => {
   }
 });
 
-// CREATE — POST /api/properties
 app.post("/api/properties", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -265,7 +250,6 @@ app.post("/api/properties", async (req, res) => {
   }
 });
 
-// READ (single) — GET /api/properties/:id
 app.get("/api/properties/:id", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -301,7 +285,6 @@ app.get("/api/properties/:id", async (req, res) => {
   }
 });
 
-// UPDATE — PATCH /api/properties/:id
 app.patch("/api/properties/:id", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -318,7 +301,6 @@ app.patch("/api/properties/:id", async (req, res) => {
   }
 });
 
-// DELETE — DELETE /api/properties/:id
 app.delete("/api/properties/:id", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -334,9 +316,6 @@ app.delete("/api/properties/:id", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// REVIEWS — READ (list for a property)
-// ─────────────────────────────────────────────────────────────
 app.get("/api/properties/:id/reviews", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -379,9 +358,6 @@ app.get("/api/properties/:id/reviews", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// TESTIMONIALS — READ (from MongoDB)
-// ─────────────────────────────────────────────────────────────
 app.get("/api/testimonials", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -407,9 +383,6 @@ app.get("/api/testimonials", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// AGENTS — READ (from MongoDB)
-// ─────────────────────────────────────────────────────────────
 app.get("/api/agents", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -431,9 +404,6 @@ app.get("/api/agents", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// STATS — READ (computed from MongoDB)
-// ─────────────────────────────────────────────────────────────
 app.get("/api/stats", async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: "Database not ready" });
@@ -443,7 +413,6 @@ app.get("/api/stats", async (req, res) => {
       db.collection("agents").countDocuments(),
     ]);
 
-    // Count distinct cities from properties
     const cityDocs = await db
       .collection("properties")
       .distinct("location.city");
@@ -451,7 +420,7 @@ app.get("/api/stats", async (req, res) => {
     res.json({
       properties: propertyCount,
       cities: cityDocs.length || 0,
-      clients: 12000, // static business metric
+      clients: 12000,
       agents: agentCount,
     });
   } catch (error) {
@@ -460,9 +429,6 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// Health check
-// ─────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "NestFind API is running" });
 });
